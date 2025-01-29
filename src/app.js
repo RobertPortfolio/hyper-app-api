@@ -11,7 +11,7 @@ const mesocyclesRoutes = require('./routes/mesocycles-routes');
 const app = express();
 
 app.use(cors({
-    origin: [ 'http://localhost:3000' ], // Укажите ваш источник
+    origin: [ 'http://localhost:3000', 'https://hyper-app-ogcm.onrender.com' ], // Укажите ваш источник
     credentials: true, // Разрешить отправку куки
 }));
 app.use(bodyParser.json());
