@@ -4,7 +4,7 @@ const templateSchema = new mongoose.Schema({
 	name: String,
 	emphasis: String,
 	daysPerWeek: Number,
-	sex: Boolean,
+	sex: String,
 	isCustom: Boolean,
 	authorId: String,
 	days: [
