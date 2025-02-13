@@ -4,8 +4,9 @@ const templateSchema = new mongoose.Schema({
 	name: String,
 	emphasis: String,
 	daysPerWeek: Number,
+	sex: Boolean,
 	isCustom: Boolean,
-	authorId: String,	
+	authorId: String,
 	days: [
 		{
 			dayId: String,
