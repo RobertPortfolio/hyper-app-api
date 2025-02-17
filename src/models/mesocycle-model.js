@@ -23,6 +23,7 @@ const daySchema = new mongoose.Schema({
     dayName: String,
     isCurrent: Boolean,
     isDone: Boolean,
+    endDate: String,
     exercises: [exerciseSchema],
 });
 
