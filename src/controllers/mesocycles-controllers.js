@@ -1,4 +1,5 @@
 const Mesocycle = require('../models/mesocycle-model');
+const mongoose = require("mongoose");
 
 exports.getUserMesocycles = async (req, res) => {
     const { userId } = req.params;
@@ -109,4 +110,140 @@ exports.changeCurrentMesocycle = async (req, res) => {
         console.error('Error updating current mesocycle:', error);
         res.status(500).json({ message: 'Internal server error', error });
     }
+};
+
+// Функция для поиска текущего мезоцикла
+const findCurrentMesocycle = (mesocycles) => {
+  return mesocycles.find(meso => meso.isCurrent) || null;
+};
+
+// Функция для получения текущего дня в текущем мезоцикле (через weeks)
+const getCurrentDay = (mesocycle) => {
+  if (!mesocycle) return null;
+  const days = mesocycle.weeks.reduce((acc, week) => acc.concat(week.days), []);
+  return days.find(day => day.isCurrent) || null;
+};
+
+// Функция для поиска дня по ID в текущем мезоцикле (через weeks)
+const getDayById = (mesocycle, dayId) => {
+  if (!mesocycle) return null;
+  const days = mesocycle.weeks.reduce((acc, week) => acc.concat(week.days), []);
+  return days.find(day => day._id.toString() === dayId) || null;
+};
+
+// Создание пустого подхода
+const getEmptySet = (weight = "", type = "straight") => ({
+  _id: new mongoose.Types.ObjectId(),
+  weight,
+  reps: "",
+  type,
+  isDone: false,
+});
+
+// Создание пустого упражнения
+const getEmptyExercise = (targetMuscleGroupId, exerciseId, notes = "") => ({
+  _id: new mongoose.Types.ObjectId(),
+  targetMuscleGroupId,
+  exerciseId,
+  sets: [getEmptySet(), getEmptySet()], // Два пустых подхода по умолчанию
+  notes,
+  pumpRate: "",
+  sorenessRate: "",
+  jointPainRate: "",
+  workloadRate: "",
+});
+
+
+exports.changeCurrentDay = async (req, res) => {
+  try {
+    const { id } = req.params; // ID мезоцикла
+    const { dayId } = req.body; // ID нового текущего дня
+
+    // Получаем мезоцикл по id
+    const mesocycle = await Mesocycle.findById(id);
+    if (!mesocycle) {
+      return res.status(404).json({ message: 'Мезоцикл не найден' });
+    }
+
+    // Используем вспомогательные функции для получения дней
+    const prevDay = getCurrentDay(mesocycle);
+    const newDay = getDayById(mesocycle, dayId);
+
+    if (!newDay) {
+      return res.status(404).json({ message: 'Новый день не найден в этом мезоцикле' });
+    }
+
+    // Если предыдущий текущий день отличается от нового, сбрасываем его флаг
+    if (prevDay && prevDay._id.toString() !== dayId) {
+      // Поскольку дни находятся внутри недель, используем конструкцию обновления с массивом вложенных документов.
+      await Mesocycle.updateOne(
+        { _id: id, "weeks.days._id": prevDay._id },
+        { $set: { "weeks.$[week].days.$[day].isCurrent": false } },
+        { arrayFilters: [{ "week.days": { $elemMatch: { _id: prevDay._id } } }, { "day._id": prevDay._id }] }
+      );
+    }
+
+    // Устанавливаем новый текущий день
+    await Mesocycle.updateOne(
+      { _id: id, "weeks.days._id": dayId },
+      { $set: { "weeks.$[week].days.$[day].isCurrent": true } },
+      { arrayFilters: [{ "week.days": { $elemMatch: { _id: dayId } } }, { "day._id": dayId }] }
+    );
+
+    res.json({ message: 'Текущий день обновлён' });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+exports.deleteExercise = async (req, res) => {
+  try {
+    const { id } = req.params;       // ID мезоцикла
+    const { exerciseId } = req.body;   // ID упражнения для удаления
+
+    // Выполняем атомарное обновление: ищем мезоцикл, затем в каждом дне (внутри недель),
+    // где isCurrent: true, удаляем упражнение с _id равным exerciseId.
+    const result = await Mesocycle.updateOne(
+      { _id: id, "weeks.days.isCurrent": true },
+      { $pull: { "weeks.$[].days.$[day].exercises": { _id: exerciseId } } },
+      { arrayFilters: [{ "day.isCurrent": true }] }
+    );
+
+    if (result.modifiedCount === 0) {
+      return res.status(404).json({ message: 'Упражнение не удалено или не найдено' });
+    }
+
+    res.json({ message: 'Упражнение удалено' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+exports.addExercise = async (req, res) => {
+  try {
+    const { id } = req.params; // ID мезоцикла
+    const { targetMuscleGroupId, exerciseId, notes } = req.body; // Данные упражнения
+
+    // Генерируем новое упражнение
+    const newExercise = getEmptyExercise(targetMuscleGroupId, exerciseId, notes);
+
+    // Выполняем атомарное добавление в текущий день
+    const result = await Mesocycle.updateOne(
+      { _id: id, "weeks.days.isCurrent": true },
+      { $push: { "weeks.$[].days.$[day].exercises": newExercise } },
+      { arrayFilters: [{ "day.isCurrent": true }] }
+    );
+
+    if (result.modifiedCount === 0) {
+      return res.status(404).json({ message: "Текущий день не найден или упражнение не добавлено" });
+    }
+
+    res.json({ message: "Упражнение добавлено", exercise: newExercise });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Ошибка сервера" });
+  }
 };
