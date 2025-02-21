@@ -247,3 +247,34 @@ exports.addExercise = async (req, res) => {
     res.status(500).json({ message: "Ошибка сервера" });
   }
 };
+
+exports.replaceExercise = async (req, res) => {
+  try {
+    const { id } = req.params; // ID мезоцикла
+    const { exerciseId, targetMuscleGroupId, newExerciseId, notes } = req.body; // Параметры замены
+
+    // Создаем новое упражнение с новым _id
+    const newExercise = getEmptyExercise(targetMuscleGroupId, newExerciseId, notes);
+
+    // MongoDB операция: заменяем упражнение по индексу
+    const result = await Mesocycle.updateOne(
+      { _id: id, "weeks.days.isCurrent": true, "weeks.days.exercises._id": exerciseId },
+      { $set: { "weeks.$[].days.$[day].exercises.$[exercise]": newExercise } },
+      {
+        arrayFilters: [
+          { "day.isCurrent": true },
+          { "exercise._id": exerciseId }
+        ]
+      }
+    );
+
+    if (result.modifiedCount === 0) {
+      return res.status(404).json({ message: "Упражнение не найдено или не заменено" });
+    }
+
+    res.json({ message: "Упражнение заменено", exercise: newExercise });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Ошибка сервера", error: error.message });
+  }
+};

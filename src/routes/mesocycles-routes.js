@@ -6,7 +6,8 @@ const { getUserMesocycles,
 		changeCurrentMesocycle,
 		changeCurrentDay,
 		deleteExercise,
-		addExercise } = require('../controllers/mesocycles-controllers');
+		addExercise,
+		replaceExercise } = require('../controllers/mesocycles-controllers');
 
 const router = express.Router();
 
@@ -18,5 +19,6 @@ router.patch('/change-current-meso/:id/:userId', changeCurrentMesocycle);
 router.patch('/change-current-day/:id', changeCurrentDay);
 router.patch('/delete-exercise/:id', deleteExercise);
 router.patch('/add-exercise/:id', addExercise);
+router.patch('/replace-exercise/:id', replaceExercise);
 
 module.exports = router;
