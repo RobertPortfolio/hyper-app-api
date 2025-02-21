@@ -278,3 +278,63 @@ exports.replaceExercise = async (req, res) => {
     res.status(500).json({ message: "Ошибка сервера", error: error.message });
   }
 };
+
+exports.moveExercise = async (req, res) => {
+    try {
+        const { id } = req.params; // ID мезоцикла
+        const { exerciseId, direction } = req.body;
+
+        // Находим мезоцикл и текущий день
+        const mesocycle = await Mesocycle.findOne(
+            { _id: id, "weeks.days.isCurrent": true },
+            { "weeks.days.$": 1 }
+        );
+
+        if (!mesocycle) {
+            return res.status(404).json({ message: "Мезоцикл или текущий день не найден" });
+        }
+
+        const day = mesocycle.weeks.flatMap(week => week.days).find(day => day.isCurrent);
+        if (!day) {
+            return res.status(404).json({ message: "Текущий день не найден" });
+        }
+
+        // Находим индекс упражнения
+        const index = day.exercises.findIndex(ex => ex._id.toString() === exerciseId);
+        if (index === -1) {
+            return res.status(404).json({ message: "Упражнение не найдено" });
+        }
+
+        // Вычисляем новый индекс в зависимости от направления
+        const newIndex = direction === "up" ? index - 1 : index + 1;
+        if (newIndex < 0 || newIndex >= day.exercises.length) {
+            return res.status(400).json({ message: "Нельзя переместить дальше" });
+        }
+
+        // Упражнение, которое нужно переместить
+        const exerciseToMove = day.exercises[index];
+
+        // Операция для обмена местами элементов массива
+        const result = await Mesocycle.updateOne(
+            { _id: id, "weeks.days.isCurrent": true },
+            {
+                $set: {
+                    // Сначала ставим на место нового индекса одно упражнение
+                    [`weeks.$[].days.$[day].exercises.${newIndex}`]: exerciseToMove,
+                    // Потом ставим на место старого индекса второе упражнение
+                    [`weeks.$[].days.$[day].exercises.${index}`]: day.exercises[newIndex]
+                }
+            },
+            { arrayFilters: [{ "day.isCurrent": true }] }
+        );
+
+        if (result.modifiedCount === 0) {
+            return res.status(404).json({ message: "Ошибка обновления" });
+        }
+
+        res.json({ message: "Упражнение перемещено" });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Ошибка сервера" });
+    }
+};
