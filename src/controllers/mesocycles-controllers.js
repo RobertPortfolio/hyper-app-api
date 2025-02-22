@@ -338,3 +338,232 @@ exports.moveExercise = async (req, res) => {
         res.status(500).json({ message: "Ошибка сервера" });
     }
 };
+
+exports.deleteSet = async (req, res) => {
+    try {
+        const { id } = req.params; // ID мезоцикла
+        const { exerciseId, setId } = req.body; // ID упражнения и ID сета
+
+        const result = await Mesocycle.findOneAndUpdate(
+            { _id: id, "weeks.days.isCurrent": true, "weeks.days.exercises._id": exerciseId },
+            {
+                $pull: {
+                    "weeks.$[].days.$[day].exercises.$[exercise].sets": { _id: setId }
+                }
+            },
+            {
+                arrayFilters: [
+                    { "day.isCurrent": true },
+                    { "exercise._id": exerciseId }
+                ],
+                new: true // Возвращает обновленный документ
+            }
+        );
+
+        if (!result) {
+            return res.status(404).json({ message: "Сет не найден или не удалось удалить" });
+        }
+
+        res.json({ message: "Сет удален" });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Ошибка сервера" });
+    }
+};
+
+// Серверный метод с атомарностью
+exports.addSet = async (req, res) => {
+    try {
+        const { id } = req.params; // ID мезоцикла
+        const { exerciseId, setId } = req.body;
+
+        let newSet;
+
+        if (setId) {
+            // Ищем упражнение и сет, после которого нужно вставить новый
+            const mesocycle = await Mesocycle.findOne(
+                { _id: id, "weeks.days.isCurrent": true },
+                { "weeks.days.$": 1 }
+            );
+
+            if (!mesocycle) {
+                return res.status(404).json({ message: "Мезоцикл или текущий день не найден" });
+            }
+
+            const day = mesocycle.weeks.flatMap(week => week.days).find(day => day.isCurrent);
+            if (!day) {
+                return res.status(404).json({ message: "Текущий день не найден" });
+            }
+
+            const exercise = day.exercises.find(ex => ex._id.toString() === exerciseId);
+            if (!exercise) {
+                return res.status(404).json({ message: "Упражнение не найдено" });
+            }
+
+            const prevSet = exercise.sets.find(set => set._id.toString() === setId);
+            if (!prevSet) {
+                return res.status(404).json({ message: "Указанный сет не найден" });
+            }
+
+            const index = exercise.sets.indexOf(prevSet);
+            if (index === -1) {
+                return res.status(404).json({ message: "Ошибка поиска индекса сета" });
+            }
+
+            // Создаём новый сет с тем же весом и типом, что и у предыдущего
+            newSet = getEmptySet(prevSet.weight, prevSet.type);
+
+            // Запрос на вставку нового сета после указанного
+            updateQuery = {
+                $push: {
+                    "weeks.$[].days.$[day].exercises.$[exercise].sets": {
+                        $each: [newSet],
+                        $position: index + 1
+                    }
+                }
+            };
+        } else {
+            // Если `setId` нет, создаем обычный пустой сет
+            newSet = getEmptySet();
+            
+            updateQuery = {
+                $push: {
+                    "weeks.$[].days.$[day].exercises.$[exercise].sets": newSet
+                }
+            };
+        }
+
+        const result = await Mesocycle.updateOne(
+            { _id: id, "weeks.days.isCurrent": true },
+            updateQuery,
+            { arrayFilters: [{ "day.isCurrent": true }, { "exercise._id": exerciseId }] }
+        );
+
+        if (result.modifiedCount === 0) {
+            return res.status(404).json({ message: "Ошибка обновления" });
+        }
+
+        res.json({ message: "Сет добавлен", newSet });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Ошибка сервера" });
+    }
+};
+
+exports.updateSet = async (req, res) => {
+    try {
+        const { id } = req.params; // ID мезоцикла
+        const { exerciseId, set, isDone } = req.body;
+
+        // Объединяем данные из set и isDone
+        const updatedSet = { ...set, isDone };
+
+        const result = await Mesocycle.updateOne(
+            { _id: id, "weeks.days.isCurrent": true, "weeks.days.exercises._id": exerciseId },
+            {
+                $set: {
+                    "weeks.$[].days.$[day].exercises.$[exercise].sets.$[set]": updatedSet
+                }
+            },
+            {
+                arrayFilters: [
+                    { "day.isCurrent": true },
+                    { "exercise._id": exerciseId },
+                    { "set._id": set._id }
+                ]
+            }
+        );
+
+        if (result.modifiedCount === 0) {
+            return res.status(404).json({ message: "Подход или упражнение не найдено" });
+        }
+
+        res.json({ message: "Подход обновлён" });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Ошибка сервера" });
+    }
+};
+
+exports.applyNotesToExercisesInMesocycle = async (req, res) => {
+  try {
+    const { id } = req.params; // ID мезоцикла
+    const { exerciseId, notes } = req.body;
+
+    const result = await Mesocycle.updateOne(
+      { _id: id },
+      {
+        $set: {
+          "weeks.$[].days.$[].exercises.$[exercise].notes": notes
+        }
+      },
+      {
+        arrayFilters: [
+          { "exercise.exerciseId": exerciseId }
+        ]
+      }
+    );
+
+    if (result.modifiedCount === 0) {
+      return res.status(404).json({ message: "Упражнение не найдено" });
+    }
+
+    res.json({ message: "Примечания обновлены" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Ошибка сервера" });
+  }
+};
+
+const getFormattedDate = () => {
+  return new Date().toLocaleDateString('ru-RU', { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+exports.updateStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { dayId, isDone } = req.body;
+
+    // Обновление статуса дня
+    const resultDay = await Mesocycle.updateOne(
+      { _id: id, "weeks.days._id": dayId },
+      {
+        $set: {
+          "weeks.$[].days.$[day].isDone": isDone,
+          "weeks.$[].days.$[day].endDate": isDone ? getFormattedDate() : ''
+        }
+      },
+      {
+        arrayFilters: [{ "day._id": dayId }]
+      }
+    );
+
+    const updatedMesocycle = await Mesocycle.findById(id);
+
+    // Проверяем, завершены ли все дни в мезоцикле
+    const allDaysDone = updatedMesocycle.weeks.every(week =>
+      week.days.every(day => day.isDone)
+    );
+
+    // Обновляем статус мезоцикла
+    const resultMesocycle = await Mesocycle.updateOne(
+      { _id: id },
+      {
+        $set: {
+          isDone: allDaysDone,
+          endDate: allDaysDone ? getFormattedDate() : ''
+        }
+      }
+    );
+
+    // Возвращаем статусы дня и мезоцикла
+    res.json({
+      message: "Статус обновлён",
+      dayIsDone: isDone,
+      mesocycleIsDone: allDaysDone
+    });
+  } catch (error) {
+    console.error("Ошибка при обновлении статуса:", error);
+    res.status(500).json({ message: "Ошибка сервера" });
+  }
+};
