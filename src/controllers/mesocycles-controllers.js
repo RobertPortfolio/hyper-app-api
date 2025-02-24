@@ -560,7 +560,8 @@ exports.updateStatus = async (req, res) => {
     res.json({
       message: "Статус обновлён",
       dayIsDone: isDone,
-      mesocycleIsDone: allDaysDone
+      mesocycleIsDone: allDaysDone,
+      endDate: getFormattedDate(),
     });
   } catch (error) {
     console.error("Ошибка при обновлении статуса:", error);
