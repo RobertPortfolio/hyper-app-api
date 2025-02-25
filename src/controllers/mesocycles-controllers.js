@@ -40,10 +40,10 @@ exports.createMesocycle = async (req, res) => {
 
 // Удаление шаблона
 exports.deleteMesocycle = async (req, res) => {
-    const { id } = req.params;
+    const { mesocycleId } = req.params;
 
     try {
-        const deletedMesocycle = await Mesocycle.findByIdAndDelete(id);
+        const deletedMesocycle = await Mesocycle.findByIdAndDelete(mesocycleId);
         if (!deletedMesocycle) {
             return res.status(404).json({ message: 'Mesocycle not found' });
         }
@@ -58,8 +58,8 @@ exports.deleteMesocycle = async (req, res) => {
 
 exports.updateMesocycle = async (req, res) => {
     try {
-        const { id } = req.params;
         const updatedData = req.body; // Например, весь объект мезоцикла
+        const id = updatedData._id;
         const updatedMesocycle = await Mesocycle.findByIdAndUpdate(
             id,
             updatedData, // Данные для обновления
@@ -79,10 +79,10 @@ exports.updateMesocycle = async (req, res) => {
 
 exports.changeCurrentMesocycle = async (req, res) => {
     try {
-        const { id, userId } = req.params;
+        const { mesocycleId, userId } = req.body;
 
         // Проверка входных данных
-        if (!id || !userId) {
+        if (!mesocycleId || !userId) {
             return res.status(400).json({ message: 'Invalid parameters' });
         }
 
@@ -94,7 +94,7 @@ exports.changeCurrentMesocycle = async (req, res) => {
 
         // Устанавливаем текущий статус для указанного мезоцикла
         const updatedMesocycle = await Mesocycle.findByIdAndUpdate(
-            id,
+            mesocycleId,
             { $set: { isCurrent: true } },
             { new: true } // Возвращает обновлённый документ
         );
@@ -156,11 +156,10 @@ const getEmptyExercise = (targetMuscleGroupId, exerciseId, notes = "") => ({
 
 exports.changeCurrentDay = async (req, res) => {
   try {
-    const { id } = req.params; // ID мезоцикла
-    const { dayId } = req.body; // ID нового текущего дня
+    const { mesocycleId, dayId } = req.body; // ID нового текущего дня
 
-    // Получаем мезоцикл по id
-    const mesocycle = await Mesocycle.findById(id);
+    // Получаем мезоцикл по mesocycleId
+    const mesocycle = await Mesocycle.findById(mesocycleId);
     if (!mesocycle) {
       return res.status(404).json({ message: 'Мезоцикл не найден' });
     }
@@ -177,7 +176,7 @@ exports.changeCurrentDay = async (req, res) => {
     if (prevDay && prevDay._id.toString() !== dayId) {
       // Поскольку дни находятся внутри недель, используем конструкцию обновления с массивом вложенных документов.
       await Mesocycle.updateOne(
-        { _id: id, "weeks.days._id": prevDay._id },
+        { _id: mesocycleId, "weeks.days._id": prevDay._id },
         { $set: { "weeks.$[week].days.$[day].isCurrent": false } },
         { arrayFilters: [{ "week.days": { $elemMatch: { _id: prevDay._id } } }, { "day._id": prevDay._id }] }
       );
@@ -185,7 +184,7 @@ exports.changeCurrentDay = async (req, res) => {
 
     // Устанавливаем новый текущий день
     await Mesocycle.updateOne(
-      { _id: id, "weeks.days._id": dayId },
+      { _id: mesocycleId, "weeks.days._id": dayId },
       { $set: { "weeks.$[week].days.$[day].isCurrent": true } },
       { arrayFilters: [{ "week.days": { $elemMatch: { _id: dayId } } }, { "day._id": dayId }] }
     );
@@ -200,13 +199,12 @@ exports.changeCurrentDay = async (req, res) => {
 
 exports.deleteExercise = async (req, res) => {
   try {
-    const { id } = req.params;       // ID мезоцикла
-    const { exerciseId } = req.body;   // ID упражнения для удаления
+    const { mesocycleId, exerciseId } = req.body;   // ID упражнения для удаления
 
     // Выполняем атомарное обновление: ищем мезоцикл, затем в каждом дне (внутри недель),
     // где isCurrent: true, удаляем упражнение с _id равным exerciseId.
     const result = await Mesocycle.updateOne(
-      { _id: id, "weeks.days.isCurrent": true },
+      { _id: mesocycleId, "weeks.days.isCurrent": true },
       { $pull: { "weeks.$[].days.$[day].exercises": { _id: exerciseId } } },
       { arrayFilters: [{ "day.isCurrent": true }] }
     );
@@ -224,15 +222,14 @@ exports.deleteExercise = async (req, res) => {
 
 exports.addExercise = async (req, res) => {
   try {
-    const { id } = req.params; // ID мезоцикла
-    const { targetMuscleGroupId, exerciseId, notes } = req.body; // Данные упражнения
+    const { mesocycleId, targetMuscleGroupId, exerciseId, notes } = req.body; // Данные упражнения
 
     // Генерируем новое упражнение
     const newExercise = getEmptyExercise(targetMuscleGroupId, exerciseId, notes);
 
     // Выполняем атомарное добавление в текущий день
     const result = await Mesocycle.updateOne(
-      { _id: id, "weeks.days.isCurrent": true },
+      { _id: mesocycleId, "weeks.days.isCurrent": true },
       { $push: { "weeks.$[].days.$[day].exercises": newExercise } },
       { arrayFilters: [{ "day.isCurrent": true }] }
     );
@@ -250,15 +247,14 @@ exports.addExercise = async (req, res) => {
 
 exports.replaceExercise = async (req, res) => {
   try {
-    const { id } = req.params; // ID мезоцикла
-    const { exerciseId, targetMuscleGroupId, newExerciseId, notes } = req.body; // Параметры замены
+    const { mesocycleId, exerciseId, targetMuscleGroupId, newExerciseId, notes } = req.body; // Параметры замены
 
     // Создаем новое упражнение с новым _id
     const newExercise = getEmptyExercise(targetMuscleGroupId, newExerciseId, notes);
 
     // MongoDB операция: заменяем упражнение по индексу
     const result = await Mesocycle.updateOne(
-      { _id: id, "weeks.days.isCurrent": true, "weeks.days.exercises._id": exerciseId },
+      { _id: mesocycleId, "weeks.days.isCurrent": true, "weeks.days.exercises._id": exerciseId },
       { $set: { "weeks.$[].days.$[day].exercises.$[exercise]": newExercise } },
       {
         arrayFilters: [
@@ -281,12 +277,11 @@ exports.replaceExercise = async (req, res) => {
 
 exports.moveExercise = async (req, res) => {
     try {
-        const { id } = req.params; // ID мезоцикла
-        const { exerciseId, direction } = req.body;
+        const { mesocycleId, exerciseId, direction } = req.body;
 
         // Находим мезоцикл и текущий день
         const mesocycle = await Mesocycle.findOne(
-            { _id: id, "weeks.days.isCurrent": true },
+            { _id: mesocycleId, "weeks.days.isCurrent": true },
             { "weeks.days.$": 1 }
         );
 
@@ -316,7 +311,7 @@ exports.moveExercise = async (req, res) => {
 
         // Операция для обмена местами элементов массива
         const result = await Mesocycle.updateOne(
-            { _id: id, "weeks.days.isCurrent": true },
+            { _id: mesocycleId, "weeks.days.isCurrent": true },
             {
                 $set: {
                     // Сначала ставим на место нового индекса одно упражнение
@@ -341,11 +336,10 @@ exports.moveExercise = async (req, res) => {
 
 exports.deleteSet = async (req, res) => {
     try {
-        const { id } = req.params; // ID мезоцикла
-        const { exerciseId, setId } = req.body; // ID упражнения и ID сета
+        const { mesocycleId, exerciseId, setId } = req.body; // ID упражнения и ID сета
 
         const result = await Mesocycle.findOneAndUpdate(
-            { _id: id, "weeks.days.isCurrent": true, "weeks.days.exercises._id": exerciseId },
+            { _id: mesocycleId, "weeks.days.isCurrent": true, "weeks.days.exercises._id": exerciseId },
             {
                 $pull: {
                     "weeks.$[].days.$[day].exercises.$[exercise].sets": { _id: setId }
@@ -374,15 +368,14 @@ exports.deleteSet = async (req, res) => {
 // Серверный метод с атомарностью
 exports.addSet = async (req, res) => {
     try {
-        const { id } = req.params; // ID мезоцикла
-        const { exerciseId, setId } = req.body;
+        const { mesocycleId, exerciseId, setId } = req.body;
 
         let newSet;
 
         if (setId) {
             // Ищем упражнение и сет, после которого нужно вставить новый
             const mesocycle = await Mesocycle.findOne(
-                { _id: id, "weeks.days.isCurrent": true },
+                { _id: mesocycleId, "weeks.days.isCurrent": true },
                 { "weeks.days.$": 1 }
             );
 
@@ -434,7 +427,7 @@ exports.addSet = async (req, res) => {
         }
 
         const result = await Mesocycle.updateOne(
-            { _id: id, "weeks.days.isCurrent": true },
+            { _id: mesocycleId, "weeks.days.isCurrent": true },
             updateQuery,
             { arrayFilters: [{ "day.isCurrent": true }, { "exercise._id": exerciseId }] }
         );
@@ -452,14 +445,13 @@ exports.addSet = async (req, res) => {
 
 exports.updateSet = async (req, res) => {
     try {
-        const { id } = req.params; // ID мезоцикла
-        const { exerciseId, set, isDone } = req.body;
+        const { mesocycleId, exerciseId, set, isDone } = req.body;
 
         // Объединяем данные из set и isDone
         const updatedSet = { ...set, isDone };
 
         const result = await Mesocycle.updateOne(
-            { _id: id, "weeks.days.isCurrent": true, "weeks.days.exercises._id": exerciseId },
+            { _id: mesocycleId, "weeks.days.isCurrent": true, "weeks.days.exercises._id": exerciseId },
             {
                 $set: {
                     "weeks.$[].days.$[day].exercises.$[exercise].sets.$[set]": updatedSet
@@ -487,11 +479,10 @@ exports.updateSet = async (req, res) => {
 
 exports.applyNotesToExercisesInMesocycle = async (req, res) => {
   try {
-    const { id } = req.params; // ID мезоцикла
-    const { exerciseId, notes } = req.body;
+    const { mesocycleId, exerciseId, notes } = req.body;
 
     const result = await Mesocycle.updateOne(
-      { _id: id },
+      { _id: mesocycleId },
       {
         $set: {
           "weeks.$[].days.$[].exercises.$[exercise].notes": notes
@@ -521,12 +512,11 @@ const getFormattedDate = () => {
 
 exports.updateStatus = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { dayId, isDone } = req.body;
+    const { mesocycleId, dayId, isDone } = req.body;
 
     // Обновление статуса дня
     const resultDay = await Mesocycle.updateOne(
-      { _id: id, "weeks.days._id": dayId },
+      { _id: mesocycleId, "weeks.days._id": dayId },
       {
         $set: {
           "weeks.$[].days.$[day].isDone": isDone,
@@ -547,7 +537,7 @@ exports.updateStatus = async (req, res) => {
 
     // Обновляем статус мезоцикла
     const resultMesocycle = await Mesocycle.updateOne(
-      { _id: id },
+      { _id: mesocycleId },
       {
         $set: {
           isDone: allDaysDone,
