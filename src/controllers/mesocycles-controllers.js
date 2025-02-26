@@ -1,59 +1,72 @@
 const Mesocycle = require('../models/mesocycle-model');
 const mongoose = require("mongoose");
+const { ObjectId } = mongoose.Types;
 
 exports.getUserMesocycles = async (req, res) => {
     const { userId } = req.params;
-    
+
+    if (!userId) {
+      return res.status(400).json({ message: 'User ID is required' });
+    }
+
     try {
-        const mesocycles = await Mesocycle.find({
-            $or: [
-                { authorId: userId }
-            ]
-        });
+        const mesocycles = await Mesocycle.find({ authorId: userId });
+        
         res.status(200).json(mesocycles);
     } catch (err) {
         res.status(500).json({ message: 'Error fetching mesocycles', error: err });
     }
 };
 
-// Создание нового шаблона
+// Создание нового мезоцикла
 exports.createMesocycle = async (req, res) => {
-    const mesocycleData = req.body;
+  const mesocycleData = req.body;
 
-    try {
-        // Обновляем все существующие мезоциклы, устанавливая isCurrent в false
-        await Mesocycle.updateMany(
-            { authorId: mesocycleData.authorId },
-            { $set: { isCurrent: false } }
-        );
+  // Проверяем, передан ли authorId
+  if (!mesocycleData.authorId) {
+      return res.status(400).json({ message: 'Author ID is required' });
+  }
 
-        // Создаем новый мезоцикл
-        const newMesocycle = new Mesocycle(mesocycleData);
-        await newMesocycle.save();
+  try {
+      // Обновляем все существующие мезоциклы, устанавливая isCurrent в false
+      await Mesocycle.updateMany(
+          { authorId: mesocycleData.authorId },
+          { $set: { isCurrent: false } }
+      );
 
-        // Отправляем новый мезоцикл в ответе
-        res.status(201).json(newMesocycle);
-    } catch (err) {
-        res.status(500).json({ message: 'Error creating mesocycle', error: err });
-    }
+      // Создаем новый мезоцикл
+      const newMesocycle = new Mesocycle(mesocycleData);
+      await newMesocycle.save();
+
+      res.status(201).json(newMesocycle);
+  } catch (err) {
+      console.error('Error creating mesocycle:', err);
+      res.status(500).json({ message: 'Error creating mesocycle', error: err.message });
+  }
 };
 
-// Удаление шаблона
+// Удаление мезоцикла
 exports.deleteMesocycle = async (req, res) => {
-    const { mesocycleId } = req.params;
+  const { mesocycleId } = req.params;
 
-    try {
-        const deletedMesocycle = await Mesocycle.findByIdAndDelete(mesocycleId);
-        if (!deletedMesocycle) {
-            return res.status(404).json({ message: 'Mesocycle not found' });
-        }
-        res.status(200).json({ 
-            message: 'Mesocycle deleted successfully',
-            deletedMesocycle: deletedMesocycle,
-        });
-    } catch (err) {
-        res.status(500).json({ message: 'Error deleting mesocycle', error: err });
-    }
+  if (!mesocycleId) {
+      return res.status(400).json({ message: 'Mesocycle ID is required' });
+  }
+
+  try {
+      const deletedMesocycle = await Mesocycle.findByIdAndDelete(mesocycleId);
+      if (!deletedMesocycle) {
+          return res.status(404).json({ message: 'Mesocycle not found' });
+      }
+      res.status(200).json({ 
+          message: 'Mesocycle deleted successfully',
+          deletedMesocycle,
+      });
+  } catch (err) {
+      // Выводим только сообщение об ошибке, без избыточных деталей
+      console.error('Error deleting mesocycle:', err);
+      res.status(500).json({ message: 'Error deleting mesocycle' });
+  }
 };
 
 exports.updateMesocycle = async (req, res) => {
@@ -528,7 +541,7 @@ exports.updateStatus = async (req, res) => {
       }
     );
 
-    const updatedMesocycle = await Mesocycle.findById(id);
+    const updatedMesocycle = await Mesocycle.findById(mesocycleId);
 
     // Проверяем, завершены ли все дни в мезоцикле
     const allDaysDone = updatedMesocycle.weeks.every(week =>
