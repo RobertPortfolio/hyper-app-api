@@ -3,7 +3,7 @@ const Exercise = require('../models/exercise-model');
 // Получение всех упражнений
 exports.getExercises = async (req, res) => {
     try {
-        const exercises = await Exercise.find();
+        const exercises = await Exercise.find({ isCustom: false });
         res.status(200).json(exercises);
     } catch (err) {
         res.status(500).json({ message: 'Error fetching exercises', error: err });

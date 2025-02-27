@@ -6,7 +6,7 @@ const { getExercises,
 const { authMiddleware } = require('../middleware/auth-middleware');
 const router = express.Router();
 
-router.get('/', authMiddleware, getExercises);
+router.get('/', getExercises);
 router.get('/:userId', authMiddleware, getUserExercises);
 router.post('/', authMiddleware, createExercise);
 router.delete('/:id', authMiddleware, deleteExercise);
