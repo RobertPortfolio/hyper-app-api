@@ -1,6 +1,5 @@
 const Mesocycle = require('../models/mesocycle-model');
 const mongoose = require("mongoose");
-const { ObjectId } = mongoose.Types;
 
 exports.getUserMesocycles = async (req, res) => {
     const { userId } = req.params;
@@ -69,6 +68,7 @@ exports.deleteMesocycle = async (req, res) => {
   }
 };
 
+// Полное обновление мезоцикла
 exports.updateMesocycle = async (req, res) => {
     try {
         const updatedData = req.body; // Например, весь объект мезоцикла

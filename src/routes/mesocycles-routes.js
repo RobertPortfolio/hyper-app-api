@@ -14,23 +14,23 @@ const { getUserMesocycles,
 		updateSet,
 		applyNotesToExercisesInMesocycle,
 		updateStatus, } = require('../controllers/mesocycles-controllers');
-
+const { authMiddleware } = require('../middleware/auth-middleware');
 const router = express.Router();
 
-router.get('/:userId', getUserMesocycles);
-router.post('/', createMesocycle);
-router.delete('/:mesocycleId', deleteMesocycle);
-router.put('/', updateMesocycle);
-router.patch('/change-current-meso/', changeCurrentMesocycle);
-router.patch('/change-current-day/', changeCurrentDay);
-router.patch('/delete-exercise/', deleteExercise);
-router.patch('/add-exercise/', addExercise);
-router.patch('/replace-exercise/', replaceExercise);
-router.patch('/move-exercise/', moveExercise);
-router.patch('/delete-set/', deleteSet);
-router.patch('/add-set/', addSet);
-router.patch('/update-set/', updateSet);
-router.patch('/apply-notes/', applyNotesToExercisesInMesocycle);
-router.patch('/update-status/', updateStatus);
+router.get('/:userId', authMiddleware, getUserMesocycles);
+router.post('/', authMiddleware, createMesocycle);
+router.delete('/:mesocycleId', authMiddleware, deleteMesocycle);
+router.put('/', authMiddleware, updateMesocycle);
+router.patch('/change-current-meso/', authMiddleware, changeCurrentMesocycle);
+router.patch('/change-current-day/', authMiddleware, changeCurrentDay);
+router.patch('/delete-exercise/', authMiddleware, deleteExercise);
+router.patch('/add-exercise/', authMiddleware, addExercise);
+router.patch('/replace-exercise/', authMiddleware, replaceExercise);
+router.patch('/move-exercise/', authMiddleware, moveExercise);
+router.patch('/delete-set/', authMiddleware, deleteSet);
+router.patch('/add-set/', authMiddleware, addSet);
+router.patch('/update-set/', authMiddleware, updateSet);
+router.patch('/apply-notes/', authMiddleware, applyNotesToExercisesInMesocycle);
+router.patch('/update-status/', authMiddleware, updateStatus);
 
 module.exports = router;

@@ -3,12 +3,12 @@ const { getExercises,
 		getUserExercises,
 		createExercise,
 		deleteExercise } = require('../controllers/exercises-controllers');
-
+const { authMiddleware } = require('../middleware/auth-middleware');
 const router = express.Router();
 
-router.get('/', getExercises);
-router.get('/:userId', getUserExercises);
-router.post('/', createExercise);
-router.delete('/:id', deleteExercise);
+router.get('/', authMiddleware, getExercises);
+router.get('/:userId', authMiddleware, getUserExercises);
+router.post('/', authMiddleware, createExercise);
+router.delete('/:id', authMiddleware, deleteExercise);
 
 module.exports = router;
