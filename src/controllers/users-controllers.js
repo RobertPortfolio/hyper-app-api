@@ -29,7 +29,8 @@ exports.registerUser = async (req, res) => {
             httpOnly: true, 
             secure: process.env.NODE_ENV === 'production', 
             sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax', 
-            maxAge: 7 * 24 * 60 * 60 * 1000 // 7 дней
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+            path: '/',
         });
 
         res.status(201).json({
@@ -64,7 +65,8 @@ exports.loginUser = async (req, res) => {
             httpOnly: true, 
             secure: process.env.NODE_ENV === 'production', 
             sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax', 
-            maxAge: 7 * 24 * 60 * 60 * 1000
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+            path: '/' 
         });
 
         res.status(200).json({
@@ -78,7 +80,7 @@ exports.loginUser = async (req, res) => {
 
 // Выход
 exports.logoutUser = (req, res) => {
-    res.cookie('token', '', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'Strict', expires: new Date(0) });
+    res.cookie('token', '', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax', expires: new Date(0) });
     res.status(200).json({ message: 'Выход успешен' });
 };
 
